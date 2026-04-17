@@ -1,5 +1,6 @@
 // ============================================
-// KryptoHlídač - Hlavní aplikace
+// KRYPTOHLÍDAČ - HLAVNÍ APLIKACE
+// S vylepšeními: řazení, export CSV, neon glow, hodiny, skeleton
 // ============================================
 
 // DOM elementy
@@ -11,16 +12,60 @@ const darkModeToggle = document.getElementById('darkModeToggle');
 const refreshAllBtn = document.getElementById('refreshAllBtn');
 const clearAllBtn = document.getElementById('clearAllBtn');
 const lastUpdateSpan = document.getElementById('lastUpdate');
+const exportBtn = document.getElementById('exportBtn');
+const liveClockSpan = document.getElementById('liveClock');
 
-// Konfigurace API
+// Konfigurace
 const API_BASE = 'https://api.coingecko.com/api/v3';
-const VS_CURRENCY = 'czk'; // Měna: CZK
+const VS_CURRENCY = 'czk';
 
-// Store sledovaných kryptoměn (ukládáme do localStorage)
+// Store
 let watchedCryptos = [];
+let currentSort = 'name'; // name, price, change
+let sortDirection = 'asc';
 
 // ============================================
-// 1. NAČTENÍ Z LOCALSTORAGE
+// LIVE HODINY
+// ============================================
+function updateClock() {
+    if (liveClockSpan) {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('cs-CZ', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        liveClockSpan.innerHTML = `<i class="far fa-clock"></i> <span>${timeString}</span>`;
+    }
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================
+// SKELETON LOADING
+// ============================================
+function showSkeletonLoading() {
+    cryptoGrid.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+        cryptoGrid.innerHTML += `
+            <div class="skeleton-card">
+                <div class="skeleton-header">
+                    <div class="skeleton-icon"></div>
+                    <div class="skeleton-text">
+                        <div class="skeleton-title"></div>
+                        <div class="skeleton-subtitle"></div>
+                    </div>
+                </div>
+                <div class="skeleton-price"></div>
+                <div class="skeleton-change"></div>
+                <div class="skeleton-cap"></div>
+            </div>
+        `;
+    }
+}
+
+// ============================================
+// LOCALSTORAGE
 // ============================================
 function loadFromStorage() {
     const stored = localStorage.getItem('kryptoHlidac');
@@ -32,12 +77,12 @@ function loadFromStorage() {
         }
     }
 
-    // Pokud je prázdné, přidáme defaultní kryptoměny
     if (watchedCryptos.length === 0) {
         watchedCryptos = [
             { id: 'bitcoin', name: 'Bitcoin', symbol: 'btc' },
             { id: 'ethereum', name: 'Ethereum', symbol: 'eth' },
-            { id: 'cardano', name: 'Cardano', symbol: 'ada' }
+            { id: 'cardano', name: 'Cardano', symbol: 'ada' },
+            { id: 'solana', name: 'Solana', symbol: 'sol' }
         ];
         saveToStorage();
     }
@@ -48,7 +93,7 @@ function saveToStorage() {
 }
 
 // ============================================
-// 2. FETCH API - ZÍSKÁNÍ DAT O KYPTOMĚNĚ
+// API VOLÁNÍ
 // ============================================
 async function fetchCryptoData(cryptoId) {
     try {
@@ -56,9 +101,7 @@ async function fetchCryptoData(cryptoId) {
         const response = await fetch(url);
 
         if (!response.ok) {
-            if (response.status === 429) {
-                throw new Error('Příliš mnoho požadavků. Počkejte prosím chvíli.');
-            }
+            if (response.status === 429) throw new Error('Příliš mnoho požadavků. Počkejte chvíli.');
             throw new Error(`API error: ${response.status}`);
         }
 
@@ -79,16 +122,11 @@ async function fetchCryptoData(cryptoId) {
     }
 }
 
-// ============================================
-// 3. ZÍSKÁNÍ DETAILŮ KRYTPOMĚNY (pro validaci)
-// ============================================
 async function searchCrypto(query) {
     try {
         const url = `${API_BASE}/search?query=${encodeURIComponent(query.toLowerCase())}`;
         const response = await fetch(url);
-
         if (!response.ok) throw new Error('Vyhledávání selhalo');
-
         const data = await response.json();
 
         if (data.coins && data.coins.length > 0) {
@@ -107,17 +145,15 @@ async function searchCrypto(query) {
 }
 
 // ============================================
-// 4. VALIDACE FORMULÁŘE
+// VALIDACE
 // ============================================
 function validateForm(inputValue) {
-    // Prázdné pole
     if (!inputValue || inputValue.trim() === '') {
         formError.textContent = '❌ Prosím zadejte název kryptoměny.';
         formError.classList.add('show');
         return false;
     }
 
-    // Minimální délka
     if (inputValue.trim().length < 2) {
         formError.textContent = '❌ Název musí mít alespoň 2 znaky.';
         formError.classList.add('show');
@@ -129,36 +165,33 @@ function validateForm(inputValue) {
 }
 
 // ============================================
-// 5. PŘIDÁNÍ NOVÉ KRYPTOMĚNY
+// PŘIDÁNÍ KRYPTOMĚNY
 // ============================================
 async function addCrypto(cryptoQuery) {
-    // Validace
     if (!validateForm(cryptoQuery)) return false;
 
-    // Zobrazení načítání
-    showLoadingState(true);
+    const submitBtn = document.querySelector('#cryptoForm button');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Vyhledávám...';
+    }
 
     try {
-        // Vyhledání kryptoměny
         const cryptoInfo = await searchCrypto(cryptoQuery);
 
         if (!cryptoInfo) {
-            formError.textContent = `❌ Kryptoměna "${cryptoQuery}" nebyla nalezena. Zkuste: bitcoin, ethereum, dogecoin...`;
+            formError.textContent = `❌ Kryptoměna "${cryptoQuery}" nebyla nalezena.`;
             formError.classList.add('show');
-            showLoadingState(false);
             return false;
         }
 
-        // Kontrola, zda už není sledovaná
         const exists = watchedCryptos.some(c => c.id === cryptoInfo.id);
         if (exists) {
             formError.textContent = `⚠️ Kryptoměna ${cryptoInfo.name} již je v seznamu.`;
             formError.classList.add('show');
-            showLoadingState(false);
             return false;
         }
 
-        // Přidání do seznamu
         watchedCryptos.push({
             id: cryptoInfo.id,
             name: cryptoInfo.name,
@@ -166,25 +199,25 @@ async function addCrypto(cryptoQuery) {
         });
         saveToStorage();
 
-        // Vyčištění formuláře
         cryptoInput.value = '';
         formError.classList.remove('show');
 
-        // Obnovení zobrazení
         await renderCryptos();
-
         return true;
     } catch (error) {
         formError.textContent = `❌ Chyba: ${error.message}`;
         formError.classList.add('show');
         return false;
     } finally {
-        showLoadingState(false);
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-search"></i> Přidat';
+        }
     }
 }
 
 // ============================================
-// 6. SMAZÁNÍ KRYPTOMĚNY
+// SMAZÁNÍ
 // ============================================
 function removeCrypto(cryptoId) {
     watchedCryptos = watchedCryptos.filter(c => c.id !== cryptoId);
@@ -192,9 +225,6 @@ function removeCrypto(cryptoId) {
     renderCryptos();
 }
 
-// ============================================
-// 7. SMAZÁNÍ VŠECH
-// ============================================
 function clearAllCryptos() {
     if (confirm('Opravdu chcete smazat všechny sledované kryptoměny?')) {
         watchedCryptos = [];
@@ -204,14 +234,84 @@ function clearAllCryptos() {
 }
 
 // ============================================
-// 8. RENDEROVÁNÍ KARET S ANIMACEMI
+// ŘAZENÍ
+// ============================================
+function sortCryptos(cryptosWithData, sortBy, direction) {
+    const sorted = [...cryptosWithData];
+
+    sorted.sort((a, b) => {
+        let valA, valB;
+
+        switch (sortBy) {
+            case 'name':
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+                break;
+            case 'price':
+                valA = a.data?.price || 0;
+                valB = b.data?.price || 0;
+                break;
+            case 'change':
+                valA = a.data?.change24h || -999;
+                valB = b.data?.change24h || -999;
+                break;
+            default:
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+        }
+
+        if (typeof valA === 'string') {
+            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+            return direction === 'asc' ? valA - valB : valB - valA;
+        }
+    });
+
+    return sorted;
+}
+
+// ============================================
+// EXPORT CSV
+// ============================================
+function exportToCSV() {
+    const cards = document.querySelectorAll('.crypto-card');
+    if (cards.length === 0) {
+        alert('Žádná data k exportu.');
+        return;
+    }
+
+    let csv = '\uFEFFNázev;Symbol;Cena (CZK);24h změna (%);Tržní kapitalizace (CZK)\n';
+
+    cards.forEach(card => {
+        const name = card.querySelector('h3')?.innerText || '';
+        const symbol = card.querySelector('.crypto-name p')?.innerText || '';
+        let price = card.querySelector('.price')?.innerText || '';
+        price = price.replace(' Kč', '').replace(/\s/g, '');
+        let change = card.querySelector('.change')?.innerText || '';
+        change = change.replace('▲', '').replace('▼', '').replace('%', '').trim();
+        let marketCap = card.querySelector('.market-cap')?.innerText || '';
+        marketCap = marketCap.replace('Tržní kapitalizace: ', '').replace(' Kč', '').replace(/\s/g, '');
+
+        csv += `"${name}";"${symbol}";${price};${change};${marketCap}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `krypto-hlidac-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ============================================
+// RENDER KRYPTOMĚN
 // ============================================
 async function renderCryptos() {
-    // Zobrazení spinneru při prázdném seznamu
     if (watchedCryptos.length === 0) {
         cryptoGrid.innerHTML = `
             <div class="card" style="grid-column: 1/-1; text-align: center;">
-                <i class="fas fa-database" style="font-size: 3rem; color: #f7931a;"></i>
+                <i class="fas fa-database" style="font-size: 3rem; color: #f59e0b;"></i>
                 <p style="margin-top: 15px;">Zatím nemáte žádné sledované kryptoměny.</p>
                 <p>Přidejte nějakou pomocí formuláře výše!</p>
             </div>
@@ -220,13 +320,8 @@ async function renderCryptos() {
         return;
     }
 
-    // Dočasně zobrazíme stará data s načítacími efekty
-    const currentCards = document.querySelectorAll('.crypto-card');
-    currentCards.forEach(card => {
-        card.classList.add('updating');
-    });
+    showSkeletonLoading();
 
-    // Načtení dat pro všechny kryptoměny
     const cryptoDataPromises = watchedCryptos.map(async (crypto) => {
         try {
             const data = await fetchCryptoData(crypto.id);
@@ -236,9 +331,9 @@ async function renderCryptos() {
         }
     });
 
-    const cryptosWithData = await Promise.all(cryptoDataPromises);
+    let cryptosWithData = await Promise.all(cryptoDataPromises);
+    cryptosWithData = sortCryptos(cryptosWithData, currentSort, sortDirection);
 
-    // Vytvoření HTML
     let html = '';
 
     for (const crypto of cryptosWithData) {
@@ -248,7 +343,6 @@ async function renderCryptos() {
         const isPositive = change24h >= 0;
         const errorMsg = crypto.error;
 
-        // Formátování ceny
         const formattedPrice = new Intl.NumberFormat('cs-CZ', {
             style: 'currency',
             currency: 'CZK',
@@ -256,7 +350,6 @@ async function renderCryptos() {
             maximumFractionDigits: 2
         }).format(price);
 
-        // Formátování market cap
         const formattedMarketCap = new Intl.NumberFormat('cs-CZ', {
             style: 'currency',
             currency: 'CZK',
@@ -264,15 +357,12 @@ async function renderCryptos() {
             maximumFractionDigits: 0
         }).format(marketCap);
 
-        // Změna v procentech
-        const changePercent = change24h.toFixed(2);
+        const changePercent = Math.abs(change24h).toFixed(2);
         const changeSymbol = isPositive ? '▲' : '▼';
-
-        // Ikona (jednoduchý fallback)
         const iconSymbol = crypto.symbol.substring(0, 2).toUpperCase();
 
         html += `
-            <div class="crypto-card" data-id="${crypto.id}">
+            <div class="crypto-card" data-id="${crypto.id}" data-price="${price}" data-change="${change24h}">
                 <div class="crypto-header">
                     <div class="crypto-icon">
                         <i class="fas fa-coins"></i>
@@ -286,7 +376,7 @@ async function renderCryptos() {
                     </button>
                 </div>
                 ${errorMsg ? `
-                    <div class="error" style="color: #e74c3c; padding: 10px;">
+                    <div class="error" style="color: #ef4444; padding: 10px;">
                         <i class="fas fa-exclamation-triangle"></i> ${escapeHtml(errorMsg)}
                     </div>
                 ` : `
@@ -307,14 +397,6 @@ async function renderCryptos() {
 
     cryptoGrid.innerHTML = html;
 
-    // Odstranění animační třídy po krátké době
-    setTimeout(() => {
-        document.querySelectorAll('.crypto-card').forEach(card => {
-            card.classList.remove('updating');
-        });
-    }, 500);
-
-    // Přidání event listenerů pro tlačítka smazání
     document.querySelectorAll('.delete-crypto').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -326,19 +408,13 @@ async function renderCryptos() {
     updateLastUpdateTime();
 }
 
-// Helper pro escapování HTML
 function escapeHtml(str) {
     if (!str) return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ============================================
-// 9. OBNOVENÍ VŠECH DAT
+// OBNOVENÍ
 // ============================================
 async function refreshAllData() {
     if (watchedCryptos.length === 0) return;
@@ -349,11 +425,11 @@ async function refreshAllData() {
     await renderCryptos();
 
     refreshAllBtn.disabled = false;
-    refreshAllBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Obnovit všechny kurzy';
+    refreshAllBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Obnovit';
 }
 
 // ============================================
-// 10. DARK MODE TOGGLE
+// DARK MODE
 // ============================================
 function initDarkMode() {
     const savedMode = localStorage.getItem('darkMode');
@@ -377,7 +453,7 @@ function initDarkMode() {
 }
 
 // ============================================
-// 11. AKTUALIZACE ČASU POSLEDNÍ OBNOVY
+// ČAS AKTUALIZACE
 // ============================================
 function updateLastUpdateTime() {
     const now = new Date();
@@ -386,61 +462,62 @@ function updateLastUpdateTime() {
         minute: '2-digit',
         second: '2-digit'
     });
-    lastUpdateSpan.innerHTML = `<i class="far fa-clock"></i> Poslední aktualizace: ${formattedTime}`;
-}
-
-// ============================================
-// 12. ZOBRAZENÍ STAVU NAČÍTÁNÍ
-// ============================================
-function showLoadingState(isLoading) {
-    if (isLoading) {
-        // Neměníme celý grid, jen přidáme indikátor
-        const submitBtn = document.querySelector('#cryptoForm button');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Vyhledávám...';
-        }
-    } else {
-        const submitBtn = document.querySelector('#cryptoForm button');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-search"></i> Přidat';
-        }
+    if (lastUpdateSpan) {
+        lastUpdateSpan.innerHTML = `<i class="far fa-clock"></i> Poslední aktualizace: ${formattedTime}`;
     }
 }
 
 // ============================================
-// 13. INICIALIZACE APLIKACE
+// INICIALIZACE ŘAZENÍ
+// ============================================
+function initSorting() {
+    const sortBtns = document.querySelectorAll('.sort-btn');
+
+    sortBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sortType = btn.getAttribute('data-sort');
+
+            if (currentSort === sortType) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = sortType;
+                sortDirection = 'asc';
+            }
+
+            sortBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            renderCryptos();
+        });
+    });
+}
+
+// ============================================
+// INICIALIZACE
 // ============================================
 async function init() {
-    // Načtení z localStorage
     loadFromStorage();
-
-    // Inicializace dark mode
     initDarkMode();
-
-    // Render kryptoměn
     await renderCryptos();
+    initSorting();
 
-    // Event listenery
     cryptoForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const value = cryptoInput.value.trim();
         await addCrypto(value);
     });
 
-    refreshAllBtn.addEventListener('click', refreshAllData);
-    clearAllBtn.addEventListener('click', clearAllCryptos);
+    if (refreshAllBtn) refreshAllBtn.addEventListener('click', refreshAllData);
+    if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllCryptos);
+    if (exportBtn) exportBtn.addEventListener('click', exportToCSV);
 
-    // Automatická obnova každých 60 sekund
     setInterval(() => {
         if (watchedCryptos.length > 0) {
             refreshAllData();
         }
     }, 60000);
 
-    console.log('✅ Aplikace KryptoHlídač inicializována');
+    console.log('✅ KryptoHlídač inicializován s vylepšeními!');
 }
 
-// Spuštění po načtení DOM
 document.addEventListener('DOMContentLoaded', init);

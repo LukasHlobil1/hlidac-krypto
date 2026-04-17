@@ -5,32 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KryptoHlídač - Sledování kurzů kryptoměn</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Favicon - oranžové pozadí s bitcoin symbolem -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='25' fill='%23f59e0b'/%3E%3Ctext x='50' y='72' font-size='60' text-anchor='middle' fill='white'%3E₿%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 <div class="container">
-    <!-- Hlavička s Dark Mode toggle -->
+    <!-- Hlavička -->
     <header>
         <div class="logo">
             <div class="logo-icon">
                 <i class="fas fa-chart-line"></i>
             </div>
-            <h1>KryptoHlídač</h1>
+            <div class="logo-text">
+                <span class="logo-main">Krypto</span>
+                <span class="logo-accent">Hlídač</span>
+            </div>
         </div>
-        <button id="darkModeToggle" class="dark-mode-btn">
-            <i class="fas fa-moon"></i>
-            <span>Dark mode</span>
-        </button>
+        <div class="header-right">
+            <div class="live-clock" id="liveClock">
+                <i class="far fa-clock"></i>
+                <span>--:--:--</span>
+            </div>
+            <button id="darkModeToggle" class="dark-mode-btn">
+                <i class="fas fa-moon"></i>
+                <span>Dark mode</span>
+            </button>
+        </div>
     </header>
 
-    <!-- Popis aplikace -->
+    <!-- Hero sekce -->
     <div class="hero">
-        <p>Sledujte aktuální kurzy kryptoměn v reálném čase. <span class="highlight">Červená = pokles</span> za posledních 24 hodin.</p>
+        <p>Sledujte aktuální kurzy kryptoměn v reálném čase <span class="highlight">Červená = pokles</span> za 24h</p>
     </div>
 
-    <!-- Formulář pro přidání vlastní kryptoměny -->
+    <!-- Formulář pro přidání kryptoměny -->
     <div class="card form-card">
         <h2><i class="fas fa-plus-circle"></i> Přidat kryptoměnu</h2>
         <form id="cryptoForm">
@@ -38,9 +48,9 @@
                 <label for="cryptoInput">Název nebo symbol kryptoměny:</label>
                 <div class="input-wrapper">
                     <i class="fas fa-coins"></i>
-                    <input type="text" id="cryptoInput" placeholder="Např: bitcoin, ethereum, cardano, dogecoin">
+                    <input type="text" id="cryptoInput" placeholder="Např: bitcoin, ethereum, solana, dogecoin">
                 </div>
-                <small class="form-hint">Zadejte název kryptoměny (např. bitcoin, solana, polkadot)</small>
+                <small class="form-hint">Zadejte anglický název kryptoměny (např. bitcoin, cardano, polkadot)</small>
                 <div class="error-message" id="formError"></div>
             </div>
             <button type="submit" class="btn-primary">
@@ -49,20 +59,39 @@
         </form>
     </div>
 
-    <!-- Tlačítko pro obnovení všech dat -->
-    <div class="refresh-bar">
-        <button id="refreshAllBtn" class="btn-refresh">
-            <i class="fas fa-sync-alt"></i> Obnovit všechny kurzy
-        </button>
-        <span id="lastUpdate" class="last-update"></span>
+    <!-- Panel nástrojů (řazení + export + obnovení) -->
+    <div class="tools-bar">
+        <div class="sort-bar">
+            <button class="sort-btn" data-sort="name">
+                <i class="fas fa-sort-alpha-down"></i> Podle názvu
+            </button>
+            <button class="sort-btn" data-sort="price">
+                <i class="fas fa-sort-amount-down"></i> Podle ceny
+            </button>
+            <button class="sort-btn" data-sort="change">
+                <i class="fas fa-chart-line"></i> Podle změny
+            </button>
+        </div>
+        <div class="action-buttons">
+            <button id="exportBtn" class="btn-export">
+                <i class="fas fa-download"></i> Export CSV
+            </button>
+            <button id="refreshAllBtn" class="btn-refresh">
+                <i class="fas fa-sync-alt"></i> Obnovit
+            </button>
+        </div>
     </div>
 
-    <!-- Seznam sledovaných kryptoměn -->
+    <!-- Informace o poslední aktualizaci -->
+    <div class="refresh-bar">
+            <span id="lastUpdate" class="last-update">
+                <i class="far fa-clock"></i> Poslední aktualizace: --
+            </span>
+    </div>
+
+    <!-- Seznam kryptoměn (skeleton loading) -->
     <div class="crypto-grid" id="cryptoGrid">
-        <!-- Karty budou dynamicky vkládány JS -->
-        <div class="loading-spinner" id="loadingSpinner">
-            <i class="fas fa-spinner fa-pulse"></i> Načítám data...
-        </div>
+        <!-- Skeleton loadery budou vloženy JS -->
     </div>
 
     <!-- Tlačítko pro smazání všech -->
